@@ -33,7 +33,8 @@
 		public function process(){
 			
 			//if has a request from submit button, then capture it
-					
+			$client_data = NULL;
+			//TEST($json_data);
 			if (isset($_REQUEST['request']))
 				$input = $_REQUEST['request'];
 			else{
@@ -41,8 +42,13 @@
 				$json_data = file_get_contents('php://input');
 				//decode data into array
 				$data = json_decode($json_data, true);
-				// get request
+				
+		  		// get request
 				$input = $data['request'];
+				// get data of clients if available
+				if (isset($data['data']))
+					$client_data = $data['data']; 
+
 			}
 				
 			//change value in $input into lower case
@@ -52,27 +58,118 @@
 			
 			//if the method exist, call it
 			if((int)method_exists($this,$func) > 0)
-				$this->$func();
+				$this->$func($client_data);
 			else
 				$this->response('',404);				
 				// If the method not exist with in this class, response would be "Page not found".
 		}
 
+		//add receipt to database.
+		public function add_receipt($client_data = NULL){
+			if (!is_null($client_data))
+				$this->db->add_receipt(json_decode($client_data,true));
+		}
+
+		//input: array of product id
+		private function remove_product($client_data = NULL){
+			if (!is_null($client_data))
+				$this->db->remove_product(json_decode($client_data,true));
+		}
+
+		//input:  list of product
+		private function push_alter_product_data($client_data = NULL){
+			if (!is_null($client_data))
+				$this->db->push_alter_product_data(json_decode($client_data,true));
+		}
+
+		//input: list of product
+		private function push_new_product_data($client_data = NULL){
+			if (!is_null($client_data))
+				$this->db->push_new_product_data(json_decode($client_data,true));
+		}
+
+		
+		//check if the function are existed or not
+		private function check_username_existed($client_data = NULL){
+			if (!is_null($client_data)){
+				// return a message
+				$data = $this->db->check_username_existed(json_decode($client_data,true));
+				$json_data = json_encode($data);
+				$this->response($json_data, 200);
+			}
+		}
+		//add account to database
+		private function sign_up($client_data = NULL){
+			if (!is_null($client_data)){
+				// return a message
+				$data = $this->db->sign_up(json_decode($client_data,true));
+				$json_data = json_encode($data);
+				$this->response($json_data, 200);
+			}
+		}
+		
+
+		//check user login info
+		//client data must be array with this function
+		private function check_user_login($client_data = NULL){
+			
+			if (!is_null($client_data)){
+				// if exist users, return client data
+				$user_data = $this->db->check_user_login(json_decode($client_data,true));		
+				//encode to json
+				$json_data = json_encode($user_data);
+				//respone
+				$this->response($json_data, 200);
+			}
+		}
+		
+
 		//get the list of product info (name, unit)
-		private function get_list_of_product_info(){
+		private function get_list_of_product_info($client_data = NULL){
 			//access to database db, call function to query list of product info
-			$list_product_info = $this->db->get_list_of_product_info();
+			if (!is_null($client_data)){
+				$client_data = json_decode($client_data,true);
+				$client_data = $client_data['query'];
+			}
+			$list_product_info = $this->db->get_list_of_product_info($client_data);
 			
 			//call method convert list product into json
-			$json_data = $this->view->list_product_to_json_data($list_product_info);
-	
+			if (!is_null($list_product_info))
+				$json_data = $this->view->list_product_to_json_data($list_product_info);
+			else{
+				$json_data = array();
+				$json_data['error'] = 'No data';
+				$json_data= json_encode($json_data);
+			}
+			//response with the data encode with json, status 200 = OK
+			$this->response($json_data, 200);
+			
+		}
+
+		//get the list of import product info (name, unit)
+		private function get_list_of_import_product_info($client_data = NULL){
+			//access to database db, call function to query list of product info
+			if (!is_null($client_data)){
+				$client_data = json_decode($client_data,true);
+				$client_data = $client_data['query'];
+			}
+			$list_product_info = $this->db->get_list_of_product_info($client_data);
+			
+			//call method convert list product into json
+			if (!is_null($list_product_info))
+				$json_data = $this->view->list_import_product_to_json_data($list_product_info);
+			else{
+				$json_data = array();
+				$json_data['error'] = 'No data';
+				$json_data= json_encode($json_data);
+			}
 			//response with the data encode with json, status 200 = OK
 			$this->response($json_data, 200);
 			
 		}
 
 		//get list of user name
-		public function get_list_of_user_name(){
+		private function get_list_of_user_name($client_data = NULL){
 			//access to database db, call function to query list of product info
 			$list_of_user_name = $this->db->get_list_of_user_name();
 
@@ -95,7 +192,30 @@
 		}
 	}
 
+	//Server will work indepently. These code is to start the server
 	$server = new Server();
 	$server->process();
+	// $data = array();
+	// $data['query'] = "Đ";
+	//TEST($server->get_list_of_import_product_info());
 
+	// $user_info = array('username' => 'thtrieu');
+	// TEST($server->check_username_existed(json_encode($user_info)));
+	// 
+
+	 // $tmp = new SoldProduct(113);
+  //    $tmp->add_attribute("Sữa",100,new Unit("hộp",10000), "SUA1111",
+  //    		new Trademark("RH11221",
+  //    			new BasicInfo("Hồ Hữu Phát","hhphat@apcs.vn","0906332121","4 ABCD")
+  //    			,"Việt Nam","google.com.vn"
+  //    		)
+  //    		,"17/11/2015");
+
+  //    $BasicInfo = new BasicInfo("Kim Nhật Thành","knthanh@apcs.vn","0923232121","4 ABCD");
+
+  //    $receipt = new Receipt(1,1,new Employee("31313",$BasicInfo,10000,1,"1313131"), new Customer($BasicInfo));
+	
+  //    $receipt->add($tmp);
+  //    $receipt->add($tmp);
+  //    $server->add_receipt($receipt);
 ?>	
