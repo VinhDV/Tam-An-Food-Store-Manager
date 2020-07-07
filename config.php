@@ -1,6 +1,5 @@
 <?php
 
-
     //store database
 defined("DATABASE_PATH")
 or define("DATABASE_PATH", realpath(dirname(__FILE__) . '/database/' ).'/');            
@@ -116,6 +115,7 @@ function TEST($value){
     print_r($value);
     echo "</br></br>";
 }
+
 
 /*
     Error reporting.

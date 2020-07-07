@@ -2,8 +2,10 @@
 <?php
 	require_once($_SERVER["DOCUMENT_ROOT"] . 'Tam-An-Food-Store-Manager/'. 'config.php');
 	require_once(CLASS_PATH."Receipt.php");
-	require_once(CLASS_PATH."SQLBuilder.php");
-	
+	require_once(CLASS_PATH."SQLFactory.php");
+	require_once(CLASS_PATH."Package.php");
+	require_once(CLASS_PATH."Feature.php");
+
 	class Database{
 		// this infomation can be found in config file
 		//Properties
@@ -11,29 +13,61 @@
 		const DB_USER = USERNAME;
         const DB_PASSWORD = PASSWORD;
 	   	const DB_NAME = DBNAME;
+		
+
+		//store the database object
 		private $db = NULL;
 		
-		//Method
+		//store the previous executed data;
+		private $executed_data = NULL;
+		
+		
+		//execute the Package
+		public function execute($package){
+
+			//get the message inside the package
+			$feature_name = $package->get_message();
+
+			//get data of the package
+			$data = $package->get_data();
+
+			//SQL Factory to create SQL 
+			$sql_factory = new SQLFactory();
+			
+			//create feature type SQL
+			$sql = $sql_factory->create_sql($feature_name, $data);
+			
+			//execute the SQL            
+            $sql->execute($this->db);
+        	
+        	//get the data
+            $this->executed_data = $sql->get_return_data();
+
+		}
+
+
+		//GET THE LATEST RESULT OF QUERY
+		public function get_package(){
+			return $this->executed_data;
+		}
+
+
 		//connect to database
 		public function connect(){
 			//connect to SQl
-			$this->db = mysqli_connect(self::DB_SERVER, self::DB_USER, self::DB_PASSWORD)
-            or die("Couldn't connect to SQL Server") ;
+			$this->db = mysqli_connect(self::DB_SERVER, self::DB_USER, self::DB_PASSWORD, self::DB_NAME)
+            or die("Couldn't connect to My Server") ;
             
             //if can connect to SQL, connect to Database 
 			if($this->db){
-				$isConnect = mysqli_select_db($this->db, self::DB_NAME);
-				// if (!$isConnect){
-				// 	$this->create_default_database();
-				// 	mysqli_select_db($this->db, self::DB_NAME);
-				// }
-				if ($isConnect)
-				//set Vietnamese
+
 				mysqli_query($this->db, "SET character_set_results = 'utf8', character_set_client = 'utf8', 
 	    		character_set_connection = 'utf8', character_set_database = 'utf8', character_set_server = 'utf8'");
 				
             }
 		}
+
+
 		private function create_default_database(){
 			$filename = DATABASE_PATH . "tam_an.sql";
 			$host =self::DB_SERVER;
@@ -42,132 +76,23 @@
 			$qr = $db->exec($sql);
 			
 		}
-		//check database connectivity
-		public function is_connect(){
-			return !is_null($this->db);
+		//TESTING method
+		public function executeQuery($tmp){
+			TEST($tmp);
+			mysqli_multi_query($this->db,$tmp);
 		}
-		
-		public function check_username_existed($user_data){
-			$username = $user_data['username'];
-			$sql = mysqli_query($this->db,"SELECT Id FROM employee WHERE username = '$username'");
-    					
-            if($sql && mysqli_num_rows($sql)!=0){
-             	//if account exist             
-                $result = mysqli_fetch_array($sql,MYSQL_ASSOC);
-				
-	            $result = array('message' => "existed");			
-               
-			}
-			else
-				$result = array('message' => "not existed"); 
-			return $result;
-		}
-		//check if user login are validated
-		public function check_user_login($user_data){
-			$username = $user_data['username'];
-			$password = $user_data['password'];
-			$builder = new SQLBuilder;
-			$sql = mysqli_query($this->db, $builder->check_user_login($username, md5($password)));
-					
-            if($sql && mysqli_num_rows($sql)!=0){
-                $result = mysqli_fetch_array($sql,MYSQL_ASSOC);
-                return $result;
-			}
-		}
-		
-		//add receipt to database
-		public function add_receipt($receipt_data){
-			//new receipt
-			$receipt = new Receipt();
-			// get data
-			$receipt->get_data_from_array($receipt_data);
-			TEST($receipt->json_encode(false));
-			//compute the sequence of sql to add this receipt to db
-			$comma_seperated_list = $receipt->get_seperated_list();
-			TEST($comma_seperated_list);
-			//mysqli_query($this->db, "CALL test('$comma_seperated_list');");
-			
-		}
-		//input: array of product id
-		public function remove_product($client_data = NULL){
-			$builder = new SQLBuilder();
-			return mysqli_query($this->db, $builder->alter_product_remove_product_query($client_data));
-		}
-		//input:  list of product
-		public function push_alter_product_data($client_data = NULL){
-			$builder = new SQLBuilder();
-			return mysqli_query($this->db, $builder->alter_product_update_product_query($client_data));
-		}
-		//input: list of product
-		public function push_new_product_data($client_data = NULL){
-			$builder = new SQLBuilder();
-			return mysqli_query($this->db, $builder->alter_product_new_product_query($client_data));
-		}
-		//sign up
-		public function sign_up($user_data){
-			$name = $user_data['name'];
-			$username = $user_data['username'];
-			$password = $user_data['password'];
-			//check if the account exist or not
-			$sql = mysqli_query($this->db,"SELECT Id FROM employee WHERE username = '$username'");
-    					
-            if($sql && mysqli_num_rows($sql)!=0){
-             	//if account exist             
-                $result = mysqli_fetch_array($sql,MYSQL_ASSOC);
-				
-	            $result = array('message' => "existed");			
-               
-			}
-            else{
-            	
-                //account not exist, ready to add into the database
-                $sql = mysqli_query($this->db,"INSERT INTO employee (Name, Username, Password) 
-                					VALUES ('$name', '$username', '".md5($password)."')");
-				
-                if($sql != false){
-                    $result = array('message' => 'Success');
-                    
-				}
-			}
-			return $result;
-		}
-		public function get_list_of_product_info($data = NULL){
-            $sqlbuilder = new SQLBuilder;
-            if (is_null($data))
-            	$sql = mysqli_query($this->db, $sqlbuilder->get_list_of_product_info());
-            else
-            	$sql = mysqli_query($this->db, $sqlbuilder->alter_product_query($data));
-            
-    		$result = NULL;
-            if($sql && mysqli_num_rows($sql)!=0){    
-                $result = array();
-				while($rlt = mysqli_fetch_array($sql,MYSQL_ASSOC)){
-					
-					$result[] = $rlt;
-				}          
-            }
-            return $result;
-		}
-
-
-		public function get_list_of_user_name(){
-			
-            $sql = mysqli_query($this->db,"SELECT * FROM Employee");
-    				
-            if($sql && mysqli_num_rows($sql)!=0){    
-                $result = array();
-				while($rlt = mysqli_fetch_array($sql,MYSQL_ASSOC)){
-					$result[] = $rlt;
-				}          
-            }
-            return $result;
-		}
-		
 	}
 
 	  // $db = new Database();
+	  
+	  // $query = "UPDATE tam_an.product SET Name = 'Đèn đá tượng phật32ASD33' , Bought = '132' , Price = '17480000000.76' , Unit = 'kgeee' WHERE ID = '19' ; UPDATE tam_an.product SET Name = 'Đèn đá xây dựng323ASD23' , Bought = '133242' , Price = '17480000000.76' , Unit = 'kgeee' WHERE ID = '21' "; 
+	  
 	  // $db->connect();
- 	 // TEST($db->get_list_of_product_info());
+	  // $db->executeQuery($query);
+	  // $data = array('username' =>'ltkmai', 'password' => '870814');
+	  // $db->check_user_login($data);
+	  // TEST($db->get_package());
+ 	  
 	// $tmp = new SoldProduct(113);
  //     $tmp->add_attribute("Sữa",100, NULL, "100", "SUA1111",
  //     		NULL,"17/11/2015");
